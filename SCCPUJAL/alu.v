@@ -19,6 +19,10 @@ module alu(A, B, ALUOp, C, Zero);
           `ALU_OR:   C = A | B;                      // OR/ORI
           `ALU_SLT:  C = (A < B) ? 32'd1 : 32'd0;    // SLT/SLTI
           `ALU_SLTU: C = ({1'b0, A} < {1'b0, B}) ? 32'd1 : 32'd0;
+          `ALU_SLL:  C = B << A; // 左移操作
+          `ALU_SRL:  C = B >> A; // 右移操作
+          `ALU_LUI:  C = {B, 16`b0};  // 将指令中的16bit立即数保存到地址为rt的通用寄存器的高16位
+          `ALU_NOR:  C = ~(A | B); // 或非
           default:   C = A;                          // Undefined
       endcase
    end // end always
