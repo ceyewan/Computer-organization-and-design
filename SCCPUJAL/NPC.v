@@ -4,6 +4,7 @@ module NPC(PC, NPCOp, IMM, NPC);  // next pc module
     
    input  [31:0] PC;        // pc
    input  [1:0]  NPCOp;     // next pc operation
+   input  [31:0] PCJR;
    input  [25:0] IMM;       // immediate
    output reg [31:0] NPC;   // next pc
    
@@ -16,6 +17,7 @@ module NPC(PC, NPCOp, IMM, NPC);  // next pc module
           `NPC_PLUS4:  NPC = PCPLUS4;
           `NPC_BRANCH: NPC = PCPLUS4 + {{14{IMM[15]}}, IMM[15:0], 2'b00};
           `NPC_JUMP:   NPC = {PCPLUS4[31:28], IMM[25:0], 2'b00};
+          `NPC_JR:     NPC = PCJR;
           default:     NPC = PCPLUS4;
       endcase
    end // end always

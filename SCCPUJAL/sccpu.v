@@ -16,12 +16,12 @@ module sccpu( clk, rst, instr, readdata, PC, MemWrite, aluout, writedata, reg_se
    
    wire        RegWrite;    // control signal to register write
    wire        EXTOp;       // control signal to signed extension
-   wire [2:0]  ALUOp;       // ALU opertion
+   wire [3:0]  ALUOp;       // ALU opertion 增加一个位
    wire [1:0]  NPCOp;       // next PC operation
 
    wire [1:0]  WDSel;       // (register) write data selection
    wire [1:0]  GPRSel;      // general purpose register selection
-   
+   wire        AREGSel;     // ALU source for B // 增加一个对 B 的控制
    wire        ALUSrc;      // ALU source for A
    wire        Zero;        // ALU ouput zero
 
@@ -30,6 +30,7 @@ module sccpu( clk, rst, instr, readdata, PC, MemWrite, aluout, writedata, reg_se
    wire [4:0]  rs;          // rs
    wire [4:0]  rt;          // rt
    wire [4:0]  rd;          // rd
+   wire [31:0] shamt;       // shamt // 位移量，因为我们需要移位操作
    wire [5:0]  Op;          // opcode
    wire [5:0]  Funct;       // funct
    wire [15:0] Imm16;       // 16-bit immediate
@@ -39,12 +40,14 @@ module sccpu( clk, rst, instr, readdata, PC, MemWrite, aluout, writedata, reg_se
    wire [31:0] WD;          // register write data
    wire [31:0] RD1;         // register data specified by rs
    wire [31:0] B;           // operator for ALU B
+   wire [31:0] A;           // operator for ALU A
    
    assign Op = instr[31:26];  // instruction
    assign Funct = instr[5:0]; // funct
    assign rs = instr[25:21];  // rs
    assign rt = instr[20:16];  // rt
    assign rd = instr[15:11];  // rd
+   assign shamt = {27'b0, instr[10:6]};   //shamt // 位移量是指令的 6 到 10 位
    assign Imm16 = instr[15:0];// 16-bit immediate
    assign IMM = instr[25:0];  // 26-bit immediate
    
@@ -53,7 +56,8 @@ module sccpu( clk, rst, instr, readdata, PC, MemWrite, aluout, writedata, reg_se
       .Op(Op), .Funct(Funct), .Zero(Zero),
       .RegWrite(RegWrite), .MemWrite(MemWrite),
       .EXTOp(EXTOp), .ALUOp(ALUOp), .NPCOp(NPCOp), 
-      .ALUSrc(ALUSrc), .GPRSel(GPRSel), .WDSel(WDSel)
+      .ALUSrc(ALUSrc), .GPRSel(GPRSel), .WDSel(WDSel),
+      .AREGSel(AREGSel)
    );
    
    // instantiation of PC
@@ -62,11 +66,12 @@ module sccpu( clk, rst, instr, readdata, PC, MemWrite, aluout, writedata, reg_se
    ); 
    
    // instantiation of NPC
-   NPC U_NPC ( 
-      .PC(PC), .NPCOp(NPCOp), .IMM(IMM), .NPC(NPC)
+   NPC U_NPC (
+      .PC(PC), .NPCOp(NPCOp), .PCJR(RD1), .IMM(IMM), .NPC(NPC)
    );
    
    // instantiation of register file
+   // 寄存器文件的实例化
    RF U_RF (
       .clk(clk), .rst(rst), .RFWr(RegWrite), 
       .A1(rs), .A2(rt), .A3(A3), 
@@ -76,19 +81,28 @@ module sccpu( clk, rst, instr, readdata, PC, MemWrite, aluout, writedata, reg_se
       .reg_data(reg_data) 
    );
    
-   // mux for register data to write
-   mux4 #(5) U_MUX4_GPR_A3 (
+   // mux for register address to write
+   // 多路复用器用于写入寄存器地址
+   mux4 #(5) U_MUX2_GPR_A3 (
       .d0(rd), .d1(rt), .d2(5'b11111), .d3(5'b0), .s(GPRSel), .y(A3)
    );
    
-   // mux for register address to write
-   mux4 #(32) U_MUX4_GPR_WD (
+   // mux for register data to write
+   // 用于寄存器数据写入的多路复用器
+   mux4 #(32) U_MUX2_GPR_WD (
       .d0(aluout), .d1(readdata), .d2(PC + 4), .d3(32'b0), .s(WDSel), .y(WD)
    );
 
    // mux for signed extension or zero extension
+   // 用于有符号扩展或零扩展的多路复用器
    EXT U_EXT ( 
       .Imm16(Imm16), .EXTOp(EXTOp), .Imm32(Imm32) 
+   );
+
+   // mux for ALU A
+   // 
+   mux2 #(32) U_MUX_ALU_A (
+      .d0(RD1), .d1(shamt), .s(AREGSel), .y(A)
    );
    
    // mux for ALU B
@@ -98,7 +112,7 @@ module sccpu( clk, rst, instr, readdata, PC, MemWrite, aluout, writedata, reg_se
    
    // instantiation of alu
    alu U_ALU ( 
-      .A(RD1), .B(B), .ALUOp(ALUOp), .C(aluout), .Zero(Zero)
+      .A(A), .B(B), .ALUOp(ALUOp), .C(aluout), .Zero(Zero)
    );
 
 endmodule
